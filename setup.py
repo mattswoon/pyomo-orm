@@ -13,5 +13,6 @@ setup(
     install_requires=[
         'SQLAlchemy>=1.2',
         'Pyomo>=5.2'
+        'Pandas>=0.22.0'
     ]
 )

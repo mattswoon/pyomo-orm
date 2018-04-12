@@ -1,9 +1,9 @@
-from pyomo_orm.core.models import Base
+from pyomo_orm.core.models import Base, ProblemRunMixin
 from sqlalchemy import Column, Integer, String, Float, ForeignKey
 from sqlalchemy.orm import relationship
 
 
-class Food(Base):
+class Food(ProblemRunMixin, Base):
     __tablename__ = 'foods'
 
     id = Column(Integer, primary_key=True)
@@ -11,6 +11,7 @@ class Food(Base):
     cost = Column(Float)
     volume_per_serving = Column(Float)
     nutrient_amounts = relationship('FoodNutrientAmount')
+    amount_in_diet = Column(Integer, nullable=True)
 
     def __repr__(self):
         return '<Food: {}>'.format(
@@ -18,7 +19,7 @@ class Food(Base):
         )
 
 
-class FoodNutrientAmount(Base):
+class FoodNutrientAmount(ProblemRunMixin, Base):
     __tablename__ = 'food_nutrient_amounts'
 
     id = Column(Integer, primary_key=True)
@@ -37,7 +38,7 @@ class FoodNutrientAmount(Base):
         )
 
 
-class Nutrient(Base):
+class Nutrient(ProblemRunMixin, Base):
     __tablename__ = 'nutrients'
 
     id = Column(Integer, primary_key=True)

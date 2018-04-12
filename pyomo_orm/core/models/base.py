@@ -1,8 +1,8 @@
 from sqlalchemy.ext.declarative import declarative_base
 
-from .mixins import BaseModelMixin
-from .database import Session
-from .exc import ModelDoesNotExist
+from pyomo_orm.core.mixins import BaseModelMixin
+from pyomo_orm.core.database import Session
+from pyomo_orm.core.exc import ModelDoesNotExist
 
 class DeclarativeBase:
     def __validate__(self):

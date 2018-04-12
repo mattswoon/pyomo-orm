@@ -1,5 +1,6 @@
-from pyomo.environ import Set, Param
+from pyomo.environ import Set, Param, Var
 from .database import Session
+
 
 class BaseModelMixin:
     """
@@ -7,47 +8,53 @@ class BaseModelMixin:
     """
 
     @classmethod
-    def create_set(cls, from_attr='id', indexed_by=None, **kwargs):
+    def create_set(cls, from_attr='id', indexed_by=None, queryset=None, **kwargs):
         s = Set(**kwargs)
         s._model = cls
         s._from_attr = from_attr
         s._indexed_by = indexed_by
+        if queryset is None:
+            queryset = cls.query()
+        s._queryset = queryset
         return s
 
     @classmethod
-    def create_param(cls, pyomo_model, from_attr='id', indexed_by=None, **kwargs):
-        dispatcher = {
-            type(None): cls._create_noindex_param,
-            str: cls._create_index_param,
-            tuple: cls._create_multiindex_param
-        }
-        return dispatcher[type(indexed_by)](pyomo_model, from_attr, indexed_by, **kwargs)
-
-    @classmethod
-    def _create_index_param(cls, pyomo_model, from_attr, indexed_by, **kwargs):
-        index_sets = cls._infer_index_set(pyomo_model, indexed_by)
+    def create_param(cls, pyomo_model, from_attr='id', indexed_by=None, queryset=None, **kwargs):
+        index_sets = cls.infer_index_set(pyomo_model, indexed_by)
         p = Param(*index_sets, **kwargs)
-        p._from_attr = from_attr,
-        p._indexed_by = indexed_by
-        p._model = cls
-        return p
-
-    @classmethod
-    def _create_multiindex_param(cls, pyomo_model, from_attr, indexed_by, **kwargs):
-        index_sets = cls._infer_multiindex_set(pyomo_model, indexed_by)
-        p = Param(*index_sets, **kwargs)
-        p._from_attr = from_attr,
-        p._indexed_by = indexed_by
-        p._model = cls
-        return p
-
-    @classmethod
-    def _create_noindex_param(cls, pyomo_model, from_attr, indexed_by, **kwargs):
-        p = Param(**kwargs)
-        p._indexed_by = indexed_by
         p._from_attr = from_attr
+        p._indexed_by = indexed_by
         p._model = cls
+        if queryset is None:
+            queryset = cls.query()
+        p._queryset = queryset
         return p
+
+    @classmethod
+    def create_var(cls, pyomo_model, from_attr='id', indexed_by=None, queryset=None, **kwargs):
+        index_sets = cls.infer_index_set(pyomo_model, indexed_by)
+        v = Var(*index_sets, **kwargs)
+        v._from_attr = from_attr
+        v._indexed_by = indexed_by
+        v._model = cls
+        if queryset is None:
+            queryset = cls.query()
+        v._queryset = queryset
+        return v
+
+    @classmethod
+    def infer_index_set(cls, pyomo_model, indexed_by):
+        """
+        Returns a list of pyomo sets attached to pyomo_model that
+        were created by pyomo-orm and match the indexed_by columns
+        """
+        dispatcher = {
+            type(None): lambda x: [],
+            str: cls._infer_index_set,
+            tuple: cls._infer_multiindex_set,
+            list: cls._infer_multiindex_set
+        }
+        return dispatcher[type(indexed_by)](pyomo_model, indexed_by)
 
     @classmethod
     def _infer_index_set(cls, pyomo_model, indexed_by):
@@ -86,39 +93,41 @@ class BaseModelMixin:
         return inferred_sets
 
     @classmethod
-    def get_data(cls, from_attr='id', indexed_by=None):
+    def get_data(cls, from_attr='id', indexed_by=None, queryset=None):
+        if queryset is None:
+            queryset=cls.query()
         dispatcher = {
             type(None): cls._get_data_noindex,
             str: cls._get_data_index,
             tuple: cls._get_data_multiindex
         }
-        return dispatcher[type(indexed_by)](from_attr, indexed_by)
+        return dispatcher[type(indexed_by)](from_attr, indexed_by, queryset)
 
     @classmethod
-    def _get_data_noindex(cls, from_attr, indexed_by):
-        di = {None: [getattr(m, from_attr) for m in cls.query().all()]}
+    def _get_data_noindex(cls, from_attr, indexed_by, queryset):
+        di = {None: [getattr(m, from_attr) for m in queryset.all() if getattr(m, from_attr) is not None]}
         return di
 
     @classmethod
-    def _get_data_index(cls, from_attr, indexed_by):
+    def _get_data_index(cls, from_attr, indexed_by, queryset):
         di = dict(
             [
                 (
                     getattr(m, indexed_by),
                     getattr(m, from_attr)
-                ) for m in cls.query().all()
+                ) for m in queryset.all() if getattr(m, from_attr) is not None
             ]
         )
         return di
 
     @classmethod
-    def _get_data_multiindex(cls, from_attr, indexed_by):
+    def _get_data_multiindex(cls, from_attr, indexed_by, queryset):
         di = dict(
             [
                 (
                     tuple([getattr(m, ind) for ind in indexed_by]),
                     getattr(m, from_attr)
-                ) for m in cls.query().all()
+                ) for m in queryset.all() if getattr(m, from_attr) is not None
             ]
         )
         return di
