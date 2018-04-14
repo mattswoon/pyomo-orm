@@ -48,3 +48,17 @@ class Nutrient(ProblemRunMixin, Base):
 
     def __repr__(self):
         return '<Nutrient: {}>'.format(self.name)
+
+
+class Constant(ProblemRunMixin, Base):
+    __tablename__ = 'constants'
+
+    id = Column(Integer, primary_key=True)
+    constant_name = Column(String)
+    value = Column(Float)
+
+    def __repr__(self):
+        return '<Constant: {name} = {value}>'.format(
+            name=self.constant_name,
+            value=self.value
+        )

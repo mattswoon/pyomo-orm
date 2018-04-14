@@ -49,6 +49,14 @@ class DietProblem(BaseProblem):
         default=infinity
     )
 
+    class ConstraintRules:
+        @staticmethod
+        def cost_rule(m):
+            return (sum(m.cost[i] * m.amount_in_diet[i] for i in m.foods))
+
+        @staticmethod
+        def nutrient_lower_bound_rule(m)
+
 
 
 diet = AbstractModel()

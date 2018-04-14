@@ -1,7 +1,42 @@
 import weakref
 
+class BaseORMWrapper:
+    def __init__(self, *index_orm_sets):
+        self._index_orm_set_names = index_orm_sets
+        self._problem_object = None
 
-class ORMComponent:
+    @property
+    def _problem(self):
+        if self._problem_object is not None:
+            return self._problem_object
+        else:
+            raise AttributeError('Problem object has not been set')
+
+    @_problem.setter
+    def _problem(self, value):
+        self._problem_object = weakref.ref(value)
+
+    @property
+    def index_orm_sets(self):
+        ret = []
+        for set_name in self._index_orm_set_names:
+            ret.append(self._problem().orm_sets[set_name])
+        return ret
+
+    @property
+    def index_pyomo_sets(self):
+        ret = []
+        for set_name in self._index_orm_set_names:
+            ret.append(
+                getattr(
+                    self._problem().pyomo_model,
+                    set_name
+                )
+            )
+        return ret
+
+
+class ORMComponent(BaseORMWrapper):
     """
     Base class of all ORM components.
 
@@ -20,39 +55,19 @@ class ORMComponent:
     """
     def __init__(
         self,
-        *index_orm_sets,
+        *args,
         model=None,
         from_attr=None,
         indexed_by='id',
         queryset=None,
         **kwargs
     ):
-        self._index_orm_set_names = index_orm_sets
+        super().__init__(*args)
         self.model = model
         self.from_attr = from_attr
         self.indexed_by = indexed_by
         self.queryset = queryset
         self._kwargs = kwargs
-        self._problem_object = None
-
-    @property
-    def _problem(self):
-        if self._problem_object is not None:
-            return self._problem_object
-        else:
-            raise AttributeError('Problem object has not been set')
-
-    @_problem.setter
-    def _problem(self, value):
-        self._problem_object = weakref.ref(value)
-
-    @property
-    def index_orm_sets(self):
-        ret = []
-        for set_name in self._index_orm_set_names:
-            if hasattr(self._problem, set_name) and set_name in self._problem.orm_sets:
-                ret.append(self._problem.orm_sets[set_name])
-        return ret
 
     @property
     def object_list(self):
@@ -66,7 +81,7 @@ class ORMComponent:
         """
         Returns the problem data from the model
         """
-        return self.model.problem_data(
+        return self.model.get_data(
             from_attr=self.from_attr,
             indexed_by=self.indexed_by,
             queryset=self.queryset

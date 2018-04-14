@@ -1,7 +1,8 @@
 from pyomo.environ import AbstractModel, SolverFactory
 
 from pyomo_orm.core.models import ProblemRun, ProblemDetail
-from pyomo_orm.core.wrappers import ORMComponent, ORMSet, ORMParam, ORMVar
+from pyomo_orm.core.wrappers import (BaseORMWrapper, ORMSet, ORMParam, ORMVar,
+                                    ORMConstraint, ORMObjective)
 
 class BaseProblem:
     """
@@ -12,9 +13,9 @@ class BaseProblem:
     __solver__ = 'cbc'
 
     def __init__(self, name, description='', version=''):
-        self.pyomo_model = AbstractModel()
+        self.pyomo_model = AbstractModel(name=name)
         self.name = name
-        self.namespace = '{}_namespace'.format(name)
+        self.namespace = '{}_namespace'.format(name.lower().replace(' ', '_'))
         self.description = description
         self.version = version
         self.problem_detail = None
@@ -22,7 +23,7 @@ class BaseProblem:
 
     def _set_component_problems(self):
         for attr in dir(type(self)):
-            if isinstance(getattr(type(self), attr), ORMComponent):
+            if isinstance(getattr(type(self), attr), BaseORMWrapper):
                 setattr(getattr(self, attr), '_problem', self)
 
     def define_problem(self):
@@ -34,7 +35,7 @@ class BaseProblem:
 
     def define_sets(self):
         """
-        Runs create_set on all ORMSets and sets them to self.pyomo_model
+        Assigns all ORMSet.pyomo_set to self.pyomo_model
         """
         for name, orm_set in self.orm_sets.items():
             setattr(
@@ -46,7 +47,7 @@ class BaseProblem:
 
     def define_params(self):
         """
-        Runs create_param on all ORMParams and sets them to self.pyomo_model
+        Assigns all ORMParam.pyomo_param to self.pyomo_model
         """
         for name, orm_param in self.orm_params.items():
             setattr(
@@ -57,7 +58,7 @@ class BaseProblem:
 
     def define_vars(self):
         """
-        Runs create_var on all ORMVars and sets them to self.pyomo_model
+        Assigns all ORMVar.pyomo_var to self.pyomo_model
         """
         for name, orm_var in self.orm_vars.items():
             setattr(
@@ -67,10 +68,26 @@ class BaseProblem:
             )
 
     def define_constraints(self):
-        pass
+        """
+        Assigns all ORMConstraint.pyomo_constraint to self.pyomo_model
+        """
+        for name, orm_constraint in self.orm_constraints.items():
+            setattr(
+                self.pyomo_model,
+                name,
+                orm_constraint.pyomo_constraint
+            )
 
     def define_objective(self):
-        pass
+        """
+        Assigns all ORMObjective.pyomo_objective to self.pyomo_model
+        """
+        for name, orm_objective in self.orm_objectives.items():
+            setattr(
+                self.pyomo_model,
+                name,
+                orm_objective.pyomo_objective
+            )
 
     def create_instance(self, *args, **kwargs):
         """
@@ -128,13 +145,16 @@ class BaseProblem:
                 description=self.description,
                 version=self.version
             )
+            self.problem_detail.save()
         this_problem_run = ProblemRun(problem_details=self.problem_detail)
+        this_problem_run.save()
         self.current_problem_run = this_problem_run
 
         # add this_problem_run to all pertinent models
         model_objects_used_in_problem = self._pyomo_orm_instance_components
         for obj in model_objects_used_in_problem:
             obj.problem_run = this_problem_run
+            obj.save()
 
 
     @property
@@ -154,10 +174,10 @@ class BaseProblem:
         pyomo_orm_components = self._pyomo_orm_abstractmodel_components
         object_list = []
         for c in pyomo_orm_components:
-            object_list.append(
+            object_list.extend(
                 c._model.query().filter(
-                    getattr(c._model, c._from_attr).in_(list(c))
-                )
+                    c._model.id.in_(c._model_ids)
+                ).all()
             )
         return set(object_list)
 
@@ -179,3 +199,20 @@ class BaseProblem:
     @property
     def orm_vars(self):
         return self._get_orm_components(ORMVar)
+
+    @property
+    def orm_constraints(self):
+        return self._get_orm_components(ORMConstraint)
+
+    @property
+    def orm_objectives(self):
+        return self._get_orm_components(ORMObjective)
+
+    @property
+    def data(self):
+        di = {}
+        components = self.orm_sets
+        components.update(self.orm_params)
+        for name, orm_component in components.items():
+            di.update({name: orm_component.problem_data})
+        return {self.namespace: di}

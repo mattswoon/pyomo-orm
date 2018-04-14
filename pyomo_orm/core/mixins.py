@@ -15,31 +15,29 @@ class BaseModelMixin:
         s._indexed_by = indexed_by
         if queryset is None:
             queryset = cls.query()
-        s._queryset = queryset
+        s._model_ids = [x.id for x in queryset.all()]
         return s
 
     @classmethod
-    def create_param(cls, pyomo_model, from_attr='id', indexed_by=None, queryset=None, **kwargs):
-        index_sets = cls.infer_index_set(pyomo_model, indexed_by)
+    def create_param(cls, *index_sets, from_attr='id', indexed_by=None, queryset=None, **kwargs):
         p = Param(*index_sets, **kwargs)
         p._from_attr = from_attr
         p._indexed_by = indexed_by
         p._model = cls
         if queryset is None:
             queryset = cls.query()
-        p._queryset = queryset
+        p._model_ids = [x.id for x in queryset.all()]
         return p
 
     @classmethod
-    def create_var(cls, pyomo_model, from_attr='id', indexed_by=None, queryset=None, **kwargs):
-        index_sets = cls.infer_index_set(pyomo_model, indexed_by)
+    def create_var(cls, *index_sets, from_attr='id', indexed_by=None, queryset=None, **kwargs):
         v = Var(*index_sets, **kwargs)
         v._from_attr = from_attr
         v._indexed_by = indexed_by
         v._model = cls
         if queryset is None:
             queryset = cls.query()
-        v._queryset = queryset
+        v._model_ids = [x.id for x in queryset.all()]
         return v
 
     @classmethod
@@ -99,13 +97,17 @@ class BaseModelMixin:
         dispatcher = {
             type(None): cls._get_data_noindex,
             str: cls._get_data_index,
-            tuple: cls._get_data_multiindex
+            tuple: cls._get_data_multiindex,
+            list: cls._get_data_multiindex
         }
         return dispatcher[type(indexed_by)](from_attr, indexed_by, queryset)
 
     @classmethod
     def _get_data_noindex(cls, from_attr, indexed_by, queryset):
-        di = {None: [getattr(m, from_attr) for m in queryset.all() if getattr(m, from_attr) is not None]}
+        if queryset.filter(getattr(cls, from_attr) != None).count() > 1:
+            di = {None: [getattr(m, from_attr) for m in queryset.filter(getattr(cls, from_attr) != None).all()]}
+        else:
+            di = {None: getattr(m, from_attr) for m in queryset.filter(getattr(cls, from_attr) != None).all()}
         return di
 
     @classmethod
